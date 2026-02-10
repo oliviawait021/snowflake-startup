@@ -1,3 +1,4 @@
+[![Review Assignment Due Date](https://classroom.github.com/assets/deadline-readme-button-22041afd0340ce965d47ae6ef1cefeee28c7c493a6346c4f15d667ab976d596c.svg)](https://classroom.github.com/a/S9o_B0Y8)
 # Hands On Lab: Snowflake Startup
 
 In this assignment you'll activate your Snowflake account, familiarize yourself with the platform by setting up your first database in the Snowflake environment, and then dust off your SQL skills with some review/practice queries. Lastly we'll explore a handy SQL trick called the _common table expression_.
