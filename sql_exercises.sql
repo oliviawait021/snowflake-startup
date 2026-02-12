@@ -17,9 +17,24 @@ USE SCHEMA SQL_PRACTICE;
 -- O_ORDERKEY, O_ORDERDATE, and O_TOTALPRICE. Sort by O_TOTALPRICE descending, then by 
 -- last name ascending.
 
+SELECT c.c_firstname, c.c_lastname, o.o_orderkey, o.o_orderdate, o.o_totalprice 
+FROM ORDERS o
+JOIN CUSTOMER c ON c.c_custkey = o.o_custkey
+WHERE o.O_ORDERDATE > '2018-01-01'
+ORDER BY o.o_totalprice DESC, c.c_lastname ASC
+LIMIT 10;
+
 -- 2. 
 -- Find all orders that include a part whose name contains either "boys" or "blue". 
 -- Return O_ORDERKEY, O_ORDERDATE, P_NAME, and P_RETAILPRICE, ordered by O_ORDERDATE.
+
+SELECT o.o_orderkey, o.o_orderdate, p.p_name, p.p_retailprice 
+FROM ORDERS o
+JOIN LINEITEM l ON o.o_orderkey = l.l_orderkey
+JOIN PART p ON p.p_partkey = l.l_partkey
+WHERE p.p_name LIKE ANY ('%boys%', '%blue%')
+ORDER BY o.o_orderdate
+LIMIT 10;
 
 
 -----------||     Part 2: Aggregation, Grouping, Joins      ||--------------------------
@@ -28,15 +43,37 @@ USE SCHEMA SQL_PRACTICE;
 -- For each customer, compute Order_Count and Total_Spent (sum of O_TOTALPRICE). Return 
 -- C_CUSTKEY, first/last name, Order_Count, Total_Spent, ordered by Total_Spent desc.
 
+SELECT c.c_custkey, c.c_firstname, c.c_lastname, count(o.o_orderdate) as Order_Count, sum(o.o_totalprice) AS Total_Spent
+FROM customer c
+JOIN orders o ON c.c_custkey = o.o_custkey
+GROUP BY c.c_custkey, c.c_firstname, c.c_lastname
+ORDER BY Total_Spent
+LIMIT 10;
 
 -- 4.
 -- During 2018, for orders with O_TOTALPRICE > 1000, compute total revenue by region 
 -- (R_NAME). Return R_NAME, Total_Revenue, ordered by Total_Revenue desc.
+SELECT r.r_name, sum(o.o_totalprice) as Total_Revenue
+FROM orders o
+JOIN customer c ON c.c_custkey = o.o_custkey
+JOIN nation n ON n.n_nationkey = c.c_nationkey
+JOIN region r ON r.r_regionkey = n.n_regionkey
+WHERE year(o.o_orderdate) = 2018 AND o.o_totalprice > 1000
+GROUP BY r.r_name
+ORDER BY Total_Revenue;
+
 
 
 -- 5.
 -- For each supplier, return supplier name, nation name, and the total quantity of 
 -- items they have supplied across all orders. Order by nation, then supplier name.
+
+SELECT s.s_name, n.n_name, SUM(l.l_quantity) AS Total_Items
+FROM lineitem l
+JOIN supplier s ON s.s_suppkey = l.l_suppkey
+JOIN nation n ON s.s_nationkey = n.n_nationkey
+GROUP BY s.s_name, n.n_name
+ORDER BY n.n_name, s.s_name;
 
 
 -- 6.
@@ -44,6 +81,16 @@ USE SCHEMA SQL_PRACTICE;
 -- L_QUANTITY, L_EXTENDEDPRICE, and also include a column Order_Max_Quantity equal to 
 -- the maximum L_QUANTITY within that same order.
 
+SELECT 
+    l.l_orderkey,
+    p.p_name,
+    l.l_quantity,
+    l.l_extendedprice,
+    MAX(l.l_quantity) OVER (PARTITION BY l.l_orderkey) AS Order_Max_Quantity
+FROM supplier s
+JOIN lineitem l on l.l_suppkey = s.s_suppkey
+JOIN part p ON p.p_partkey = l.l_partkey
+WHERE l.l_orderkey = 1784611;
 
 
 -----------||     Part 3: Fun with CTEs                     ||--------------------------
@@ -71,6 +118,14 @@ USE SCHEMA SQL_PRACTICE;
 --
 -- Order the results by C_FIRSTNAME, then by C_LASTNAME.
 
+WITH cust_acct AS (
+    SELECT *
+    FROM customer 
+    WHERE c_acctbal > 9000
+)
+SELECT C_CUSTKEY, C_FIRSTNAME, C_LASTNAME
+FROM cust_acct
+ORDER BY C_FIRSTNAME, C_LASTNAME;
 
 -- 8.
 -- Create a CTE that calculates the total quantity of items for each order in the LINEITEM table.
@@ -84,6 +139,16 @@ USE SCHEMA SQL_PRACTICE;
 --
 -- Order the results by L_ORDERKEY.
 
+WITH sum_quantity AS (
+    SELECT sum(l_quantity) as Total_Quantity, l_orderkey 
+    FROM lineitem
+    GROUP BY l_orderkey
+)
+SELECT l_orderkey, Total_Quantity
+FROM sum_quantity
+WHERE Total_Quantity > 100
+ORDER BY l_orderkey
+LIMIT 20;
 
 -- 9.
 -- Using only the CTEs from #7 and #8 (do not re-write their full logic in-line), compute summary
@@ -108,7 +173,28 @@ USE SCHEMA SQL_PRACTICE;
 --   Customer_Since
 --
 -- Order the results by Avg_Order_Val descending.
-
+WITH cust_acct AS (
+    SELECT *
+    FROM customer 
+    WHERE c_acctbal > 9000
+),
+sum_quantity AS (
+    SELECT sum(l_quantity) as Total_Quantity, l_orderkey 
+    FROM lineitem
+    GROUP BY l_orderkey
+)
+SELECT c.C_CUSTKEY,
+       c.C_FIRSTNAME,
+       c.C_LASTNAME,
+       avg(o.o_totalprice) AS Avg_Order_Val,
+       avg(Total_Quantity) AS Avg_Order_Qty,
+       min(o.o_orderdate) AS Customer_Since
+FROM cust_acct c
+JOIN orders o ON o.o_custkey = c.c_custkey
+JOIN sum_quantity s ON s.l_orderkey = o.o_orderkey
+GROUP BY c.C_CUSTKEY, c.C_FIRSTNAME, c.C_LASTNAME
+ORDER BY Avg_Order_Val desc
+LIMIT 20;
 
 -- 10.
 -- Write a CTE-based query that identifies customers from Germany who place a large number of small
