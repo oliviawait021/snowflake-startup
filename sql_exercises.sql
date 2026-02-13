@@ -21,8 +21,7 @@ SELECT c.c_firstname, c.c_lastname, o.o_orderkey, o.o_orderdate, o.o_totalprice
 FROM ORDERS o
 JOIN CUSTOMER c ON c.c_custkey = o.o_custkey
 WHERE o.O_ORDERDATE > '2018-01-01'
-ORDER BY o.o_totalprice DESC, c.c_lastname ASC
-LIMIT 10;
+ORDER BY o.o_totalprice DESC, c.c_lastname ASC;
 
 -- 2. 
 -- Find all orders that include a part whose name contains either "boys" or "blue". 
@@ -33,8 +32,7 @@ FROM ORDERS o
 JOIN LINEITEM l ON o.o_orderkey = l.l_orderkey
 JOIN PART p ON p.p_partkey = l.l_partkey
 WHERE p.p_name LIKE ANY ('%boys%', '%blue%')
-ORDER BY o.o_orderdate
-LIMIT 10;
+ORDER BY o.o_orderdate;
 
 
 -----------||     Part 2: Aggregation, Grouping, Joins      ||--------------------------
@@ -45,10 +43,9 @@ LIMIT 10;
 
 SELECT c.c_custkey, c.c_firstname, c.c_lastname, count(o.o_orderdate) as Order_Count, sum(o.o_totalprice) AS Total_Spent
 FROM customer c
-JOIN orders o ON c.c_custkey = o.o_custkey
+LEFT JOIN orders o ON c.c_custkey = o.o_custkey
 GROUP BY c.c_custkey, c.c_firstname, c.c_lastname
-ORDER BY Total_Spent
-LIMIT 10;
+ORDER BY Total_Spent DESC;
 
 -- 4.
 -- During 2018, for orders with O_TOTALPRICE > 1000, compute total revenue by region 
@@ -60,7 +57,7 @@ JOIN nation n ON n.n_nationkey = c.c_nationkey
 JOIN region r ON r.r_regionkey = n.n_regionkey
 WHERE year(o.o_orderdate) = 2018 AND o.o_totalprice > 1000
 GROUP BY r.r_name
-ORDER BY Total_Revenue;
+ORDER BY Total_Revenue DESC;
 
 
 
@@ -84,6 +81,7 @@ ORDER BY n.n_name, s.s_name;
 SELECT 
     l.l_orderkey,
     p.p_name,
+    s.s_name,
     l.l_quantity,
     l.l_extendedprice,
     MAX(l.l_quantity) OVER (PARTITION BY l.l_orderkey) AS Order_Max_Quantity
@@ -147,8 +145,7 @@ WITH sum_quantity AS (
 SELECT l_orderkey, Total_Quantity
 FROM sum_quantity
 WHERE Total_Quantity > 100
-ORDER BY l_orderkey
-LIMIT 20;
+ORDER BY l_orderkey;
 
 -- 9.
 -- Using only the CTEs from #7 and #8 (do not re-write their full logic in-line), compute summary
@@ -193,8 +190,7 @@ FROM cust_acct c
 JOIN orders o ON o.o_custkey = c.c_custkey
 JOIN sum_quantity s ON s.l_orderkey = o.o_orderkey
 GROUP BY c.C_CUSTKEY, c.C_FIRSTNAME, c.C_LASTNAME
-ORDER BY Avg_Order_Val desc
-LIMIT 20;
+ORDER BY Avg_Order_Val desc;
 
 -- 10.
 -- Write a CTE-based query that identifies customers from Germany who place a large number of small
@@ -217,6 +213,23 @@ LIMIT 20;
 --   Small_Order_Count
 --
 -- Order the results by C_LASTNAME, then by C_FIRSTNAME.
+WITH Order_Count AS (
+    SELECT  count(o.o_orderkey) AS Small_Order_Count, o.o_custkey
+    FROM orders o 
+    JOIN customer c ON c.c_custkey = o.o_custkey
+    WHERE o.o_totalprice < 1000 
+    GROUP BY o.o_custkey
+),
+customer_attributes AS (
+    SELECT c.C_CUSTKEY, c.C_FIRSTNAME, c.C_LASTNAME, n.n_name
+    FROM customer c
+    JOIN nation n ON c.c_nationkey = n.n_nationkey
+)
+SELECT C_CUSTKEY, C_FIRSTNAME, C_LASTNAME, Small_Order_Count
+FROM ORDER_COUNT o
+JOIN customer_attributes c ON c.c_custkey = o.o_custkey
+WHERE c.N_NAME = 'GERMANY' and o.Small_Order_Count > 10
+ORDER BY c.c_lastname, c.c_firstname;
 
 
 -- 11.
@@ -237,6 +250,29 @@ LIMIT 20;
 --
 -- Order the results by N_NAME, then by S_NAME.
 
+WITH account_balance AS (
+    SELECT AVG(s.s_acctbal) AS Avg_acct_bal, n.n_name, n.n_nationkey
+    FROM supplier s
+    JOIN nation n ON s.s_nationkey = n.n_nationkey
+    GROUP BY n.n_name, n.n_nationkey
+),
+above_avg AS (
+    SELECT s.s_suppkey, s.s_name, n.n_name, s.s_acctbal
+    FROM supplier s 
+    JOIN nation n ON s.s_nationkey = n.n_nationkey
+    JOIN account_balance a ON n.n_nationkey = a.n_nationkey
+    WHERE s.s_acctbal > a.Avg_acct_bal
+)
+SELECT g.s_suppkey, 
+       g.s_name, 
+       g.s_acctbal, 
+       g.n_name, 
+       SUM(l.l_quantity) AS Total_Quantity_Shipped, 
+       COUNT(DISTINCT l.l_orderkey) AS Distinct_Orders_Served
+FROM above_avg g
+JOIN lineitem l ON g.s_suppkey = l.l_suppkey
+GROUP BY g.s_suppkey, g.s_name, g.s_acctbal, g.n_name
+ORDER BY g.n_name, g.s_name;
 
 -- 12.
 -- Write a CTE-based query to evaluate whether there are systematic shipping delays for customers in
@@ -264,3 +300,31 @@ LIMIT 20;
 --
 -- Order the results by R_NAME.
 
+WITH lineitem_shipping AS (
+    SELECT l.l_orderkey, 
+           DATEDIFF(day, o.o_orderdate, l.l_shipdate) AS Days_To_Ship
+    FROM lineitem l
+    JOIN orders o ON l.l_orderkey = o.o_orderkey
+),
+order_shipping AS (
+    SELECT l_orderkey, 
+           MAX(Days_To_Ship) AS Overall_Shipping_Days
+    FROM lineitem_shipping
+    GROUP BY l_orderkey
+),
+order_region AS (
+    SELECT os.l_orderkey, 
+           os.Overall_Shipping_Days, 
+           r.r_name
+    FROM order_shipping os
+    JOIN orders o ON os.l_orderkey = o.o_orderkey
+    JOIN customer c ON o.o_custkey = c.c_custkey
+    JOIN nation n ON c.c_nationkey = n.n_nationkey
+    JOIN region r ON n.n_regionkey = r.r_regionkey
+)
+SELECT r_name AS R_NAME,
+       COUNT(DISTINCT l_orderkey) AS Order_Count,
+       AVG(Overall_Shipping_Days) AS Avg_Shipping_Days
+FROM order_region
+GROUP BY r_name
+ORDER BY r_name;
