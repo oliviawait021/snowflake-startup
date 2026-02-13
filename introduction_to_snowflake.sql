@@ -166,7 +166,7 @@
 --         You can, however, inform snowflake which virtual warehouse you'd like
 --         to use with a command like the one below:
 
-USE WAREHOUSE ZEBRA_WH;
+USE WAREHOUSE LION_WH;
 
 -- 1.5.4   Show the tables that are in your current context.
 
@@ -180,7 +180,9 @@ SHOW TABLES;
 -- 1.5.5   Query some tables.
 --         During this course, many of our exercises will use data from a sample
 --         database already in your environment: IS566. Take a look at some of that data:
+USE database IS566;
 
+USE SCHEMA SQL_PRACTICE;
 SELECT TOP 5
     c.c_lastname,
     c.c_firstname,
@@ -227,9 +229,9 @@ LIMIT 10;
 
 --         NOTE: Just to be clear, you WILL need to edit the two lines below.
 
-CREATE DATABASE <Username>_db;
+CREATE DATABASE LION_db;
 
-USE DATABASE <Username>_db;
+USE DATABASE LION_db;
 
 
 -- 1.6.2   Create a schema called my_schema in the database you just created.
